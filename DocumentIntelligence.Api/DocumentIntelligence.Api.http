@@ -1,0 +1,6 @@
+@DocumentIntelligence.Api_HostAddress = https://localhost:7072
+
+GET {{DocumentIntelligence.Api_HostAddress}}/health
+Accept: text/plain
+
+###
