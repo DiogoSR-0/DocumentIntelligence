@@ -1,3 +1,9 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".env" />
+    <File Path=".env.example" />
+    <File Path=".gitignore" />
+    <File Path="compose.yaml" />
+  </Folder>
   <Project Path="DocumentIntelligence.Api/DocumentIntelligence.Api.csproj" />
 </Solution>
