@@ -1,6 +1,27 @@
 @DocumentIntelligence.Api_HostAddress = https://localhost:7072
+@DocumentIntelligence_Api_HostAddress = http://localhost:5102
+@DocumentId = 0d12c4da-c9bc-436c-b559-64b60e5491cd
 
+### Verificar estado, se a conexao está bem com o postgres
 GET {{DocumentIntelligence.Api_HostAddress}}/health
 Accept: text/plain
 
-###
+### Fazer um POST, inserção do documento
+POST {{DocumentIntelligence_Api_HostAddress}}/api/documents
+Content-Type: application/json
+
+{
+  "fileName": "",
+  "contentType": "",
+  "sizeBytes": 0
+}
+
+### Obter todos os documentos 
+GET {{DocumentIntelligence_Api_HostAddress}}/api/documents
+Accept: application/json
+
+### Obter Documento por ID
+GET {{DocumentIntelligence_Api_HostAddress}}/api/documents/{{DocumentId}}
+Accept: application/json
+
+
