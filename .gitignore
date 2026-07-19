@@ -364,3 +364,6 @@ FodyWeavers.xsd
 
 # Ignore local files
 .env
+
+# Document files stored locally
+DocumentIntelligence.Api/storage/

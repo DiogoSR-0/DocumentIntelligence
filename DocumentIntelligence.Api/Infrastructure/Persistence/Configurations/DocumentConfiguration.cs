@@ -35,6 +35,10 @@ namespace DocumentIntelligence.Api.Infrastructure.Persistence.Configurations
                 .HasColumnName("syze_bytes")
                 .IsRequired();
 
+            builder.Property(document => document.StorageKey)
+                .HasColumnName("storage_key")
+                .HasMaxLength(500);
+
             builder.Property(document => document.CreatedAtUtc)
                 .HasColumnName("created_at_utc")
                 .HasColumnType("timestamp with time zone")

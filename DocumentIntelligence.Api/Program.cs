@@ -1,5 +1,8 @@
 using DocumentIntelligence.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
+using DocumentIntelligence.Api.Application.Abstractions.Storage;
+using DocumentIntelligence.Api.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +17,9 @@ builder.Services.AddDbContext<DocumentIntelligenceDbContext>(options =>
 {
     options.UseNpgsql(connectionString);
 });
+
+// Regista o serviço responsável pelo armazenamento dos ficheiros.
+builder.Services.AddScoped<IDocumentStorage, LocalDocumentStorage>();
 
 // Adiciona suporte para controllers da API.
 builder.Services.AddControllers();
@@ -37,7 +43,11 @@ var app = builder.Build();
 // O endpoint OpenAPI fica disponível apenas em desenvolvimento.
 if (app.Environment.IsDevelopment())
 {
+    // Disponibiliza o documento OpenAPI em /openapi/v1.json
     app.MapOpenApi();
+
+    // Disponibiliza uma interface gráfica para explorar e testar a API
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
