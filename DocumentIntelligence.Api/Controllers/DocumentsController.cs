@@ -165,5 +165,54 @@ namespace DocumentIntelligence.Api.Controllers
                 response);
         }
 
+        /// <summary>
+        /// Descarrega o ficheiro associado a um documento.
+        /// </summary>
+        [HttpGet("{id:guid}/file")]
+        [Produces("application/pdf")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DownloadAsync(Guid id, CancellationToken cancellationToken)
+        {
+            var document = await dbContext.Documents
+                .AsNoTracking()
+                .Where(document => document.Id == id)
+                .Select(document => new
+                {
+                    document.FileName,
+                    document.ContentType,
+                    document.StorageKey
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (document == null)
+            {
+                return NotFound();
+            }
+
+            // Os documentos antigos foram criados apenas com metadados
+            // e não têm um ficheiro físico associado.
+            if (string.IsNullOrWhiteSpace(document.StorageKey))
+            {
+                return Problem(
+                    title: "Ficheiro não disponível.",
+                    detail: "Este documento não possui um ficheiro armazenado",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var content = await documentStorage.OpenReadAsync(document.StorageKey, cancellationToken);
+
+            if (content == null)
+            {
+                return Problem(
+                    title: "Ficheiro não foi encontrado.",
+                    detail: "O registo existe, mas o ficheiro não foi encontrado no armazenamento",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            return File(content, document.ContentType, document.FileName, enableRangeProcessing: true);
+
+        }
+
     }
 }

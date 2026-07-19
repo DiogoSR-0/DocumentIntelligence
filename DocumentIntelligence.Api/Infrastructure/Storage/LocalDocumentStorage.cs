@@ -76,6 +76,32 @@ namespace DocumentIntelligence.Api.Infrastructure.Storage
             return Task.CompletedTask;
         }
 
+        public Task<Stream?> OpenReadAsync(string storageKey, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var fullpath = GetFullPath(storageKey);
+
+            if (!File.Exists(fullpath))
+            {
+                return Task.FromResult<Stream?>(null);
+            }
+
+            Stream stream = new FileStream(
+                fullpath,
+                new FileStreamOptions
+                {
+                    Mode = FileMode.Open,
+                    Access = FileAccess.Read,
+                    Share = FileShare.Read,
+                    Options = FileOptions.Asynchronous,
+                    BufferSize = 81920
+                });
+
+            return Task.FromResult<Stream?>(stream);
+        }
+
+
         private string GetFullPath(string storageKey)
         {
             var relativePath = storageKey.Replace(

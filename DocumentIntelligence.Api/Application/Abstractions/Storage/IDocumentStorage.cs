@@ -18,8 +18,12 @@
         /// <summary>
         /// Remove um ficheiro anteriormente armazenado.
         /// </summary>
-        Task DeleteAsync(
-            string storageKey,
-            CancellationToken cancellationToken);
+        Task DeleteAsync(string storageKey, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Abre um ficheiro armazenado para leitura.
+        /// Devolve null caso o ficheiro já não exista.
+        /// </summary>
+        Task<Stream?> OpenReadAsync(string storageKey, CancellationToken cancellationToken);
     }
 }
