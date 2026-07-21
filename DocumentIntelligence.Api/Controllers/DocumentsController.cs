@@ -12,7 +12,7 @@ namespace DocumentIntelligence.Api.Controllers
     /// </summary>
     [ApiController]
     [Route("api/documents")]
-    public sealed class DocumentsController(DocumentIntelligenceDbContext dbContext, IDocumentStorage documentStorage) : ControllerBase
+    public sealed class DocumentsController(DocumentIntelligenceDbContext dbContext, IDocumentStorage documentStorage, ILogger<DocumentsController> logger) : ControllerBase
     {
         // Permite até um maximo de 10MB o tamanho do ficheiro
         private const long MaxFileSizeBytes = 10 * 1024 * 1024;
@@ -214,5 +214,48 @@ namespace DocumentIntelligence.Api.Controllers
 
         }
 
+        [HttpDelete("{id:guid}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
+        {
+            var document = await dbContext.Documents
+                .SingleOrDefaultAsync(
+                document => document.Id == id,
+                cancellationToken);
+
+            if (document == null)
+            {
+                return NotFound();
+            }
+
+            // Remove primeiro o registo da base de dados
+            dbContext.Documents .Remove(document);
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(document.StorageKey))
+            {
+                try
+                {
+                    // Usa CancellationToken.None porque o registo já foi removido.
+                    // Mesmo que o cliente cancele o pedido, tentamos concluir a limpeza.
+                    await documentStorage.DeleteAsync(document.StorageKey, CancellationToken.None);
+                }
+                catch (Exception exception)
+                {
+                    // A eliminação principal já aconteceu.
+                    // Registamos a falha para permitir limpar o ficheiro posteriormente.
+                    logger.LogError(
+                        exception,
+                        "O documento {DocumentId} foi removido da base de dados, " +
+                        "mas não foi possível eliminar o ficheiro {StorageKey}.",
+                        document.Id,
+                        document.StorageKey);
+                }
+            }
+
+            return NoContent();
+        }
     }
 }
