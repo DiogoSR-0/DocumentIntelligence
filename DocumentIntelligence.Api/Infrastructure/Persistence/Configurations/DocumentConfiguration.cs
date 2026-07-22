@@ -1,6 +1,7 @@
 ﻿using DocumentIntelligence.Api.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using DocumentIntelligence.Api.Domain.Enums;
 
 namespace DocumentIntelligence.Api.Infrastructure.Persistence.Configurations
 {
@@ -38,6 +39,24 @@ namespace DocumentIntelligence.Api.Infrastructure.Persistence.Configurations
             builder.Property(document => document.StorageKey)
                 .HasColumnName("storage_key")
                 .HasMaxLength(500);
+
+            builder.Property(document => document.Status)
+                .HasColumnName("status")
+                .HasConversion<string>()
+                .HasMaxLength(50)
+                .HasDefaultValue(DocumentStatus.Uploaded)
+                .IsRequired();
+
+            builder.Property(document => document.PageCount)
+                .HasColumnName("page_count");
+
+            builder.Property(document => document.ExtractedText)
+                .HasColumnName("extracted_text")
+                .HasColumnType("text");
+
+            builder.Property(document => document.ProcessingError)
+                .HasColumnName("processing_error")
+                .HasColumnType("text");
 
             builder.Property(document => document.CreatedAtUtc)
                 .HasColumnName("created_at_utc")

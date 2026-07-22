@@ -1,4 +1,6 @@
-﻿namespace DocumentIntelligence.Api.Contracts.Documents
+﻿using DocumentIntelligence.Api.Domain.Enums;
+
+namespace DocumentIntelligence.Api.Contracts.Documents
 {
     /// <summary>
     /// Representa os dados de um documento devolvidos pela API
@@ -8,6 +10,8 @@
         string FileName,
         string ContentType,
         long SizeBytes,
+        DocumentStatus Status,
+        int? PageCount,
         DateTimeOffset CreatedAtUtc
     );
 }

@@ -4,6 +4,9 @@ using DocumentIntelligence.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DocumentIntelligence.Api.Application.Abstractions.Storage;
+using DocumentIntelligence.Api.Application.Abstractions.Documents;
+using DocumentIntelligence.Api.Domain.Enums;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace DocumentIntelligence.Api.Controllers
 {
@@ -12,7 +15,11 @@ namespace DocumentIntelligence.Api.Controllers
     /// </summary>
     [ApiController]
     [Route("api/documents")]
-    public sealed class DocumentsController(DocumentIntelligenceDbContext dbContext, IDocumentStorage documentStorage, ILogger<DocumentsController> logger) : ControllerBase
+    public sealed class DocumentsController(
+        DocumentIntelligenceDbContext dbContext, 
+        IDocumentStorage documentStorage,
+        IDocumentTextExtractor documentTextExtractor,
+        ILogger<DocumentsController> logger) : ControllerBase
     {
         // Permite até um maximo de 10MB o tamanho do ficheiro
         private const long MaxFileSizeBytes = 10 * 1024 * 1024;
@@ -30,6 +37,8 @@ namespace DocumentIntelligence.Api.Controllers
                     document.FileName,
                     document.ContentType,
                     document.SizeBytes,
+                    document.Status,
+                    document.PageCount,
                     document.CreatedAtUtc))
                 .ToListAsync(cancellationToken);
 
@@ -52,6 +61,8 @@ namespace DocumentIntelligence.Api.Controllers
                     document.FileName,
                     document.ContentType,
                     document.SizeBytes,
+                    document.Status,
+                    document.PageCount,
                     document.CreatedAtUtc))
                 .SingleOrDefaultAsync(cancellationToken);
 
@@ -123,19 +134,51 @@ namespace DocumentIntelligence.Api.Controllers
 
             try
             {
-                await using var content = file.OpenReadStream();
-
-                // Guarda o ficheiro físico antes de registar os metadados.
-                storageKey = await documentStorage.SaveAsync(
-                    document.Id,
-                    originalFileName,
-                    content,
-                    cancellationToken);
+                // Guarda primeiro o ficheiro no armazenamento local.
+                await using (var storageContent = file.OpenReadStream())
+                {
+                    storageKey = await documentStorage.SaveAsync(
+                        document.Id,
+                        originalFileName,
+                        storageContent,
+                        cancellationToken);
+                }
 
                 document.StorageKey = storageKey;
+                document.Status = DocumentStatus.Processing;
+
+                try
+                {
+                    // Abre um novo stream para a extração de texto.
+                    await using var extractionContent = file.OpenReadStream();
+
+                    var extractionResult = await documentTextExtractor.ExtractAsync(extractionContent, cancellationToken);
+
+                    document.ExtractedText = extractionResult.Text;
+                    document.PageCount = extractionResult.PageCount;
+                    document.ProcessingError = null;
+                    document.Status = DocumentStatus.Completed;
+
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Um cancelamento do pedido não é tratado como erro do PDF.
+                    throw;
+                }
+                catch (Exception exception) 
+                {
+                    // O upload foi concluído, mas não foi possível extrair o texto
+                    document.ExtractedText = null;
+                    document.PageCount = null;
+                    document.ProcessingError = "Náo foi possível extrair o texto do documento.";
+                    document.Status = DocumentStatus.Failed;
+
+                    logger.LogWarning(exception, "Não foi possível extrair o texto do documento {DocumentId}.", document.Id);
+                }
 
                 dbContext.Documents.Add(document);
 
+                // Guarda no PostgreSQL os metadados e o resultado da extração.
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
             catch
@@ -144,9 +187,14 @@ namespace DocumentIntelligence.Api.Controllers
                 // para evitar ficheiros órfãos no armazenamento.
                 if (storageKey is not null)
                 {
-                    await documentStorage.DeleteAsync(
-                        storageKey,
-                        CancellationToken.None);
+                    try
+                    {
+                        await documentStorage.DeleteAsync(storageKey, CancellationToken.None);
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        logger.LogError(cleanupException, "Não foi possível remover o ficheiro {StorageKey} depois de uma falha no upload.", storageKey);
+                    }
                 }
 
                 throw;
@@ -157,6 +205,8 @@ namespace DocumentIntelligence.Api.Controllers
                 document.FileName,
                 document.ContentType,
                 document.SizeBytes,
+                document.Status,
+                document.PageCount,
                 document.CreatedAtUtc);
 
             return CreatedAtRoute(
@@ -256,6 +306,30 @@ namespace DocumentIntelligence.Api.Controllers
             }
 
             return NoContent();
+        }
+
+        [HttpGet("{id:guid}/text")]
+        [ProducesResponseType(typeof(DocumentTextResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<DocumentTextResponse>> GetTextAsync(Guid id, CancellationToken cancellationToken)
+        {
+            var response = await dbContext.Documents
+                .AsNoTracking()
+                .Where(document => document.Id == id)
+                .Select(document => new DocumentTextResponse(
+                    document.Id,
+                    document.Status,
+                    document.PageCount,
+                    document.ExtractedText,
+                    document.ProcessingError))
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if(response == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(response);
         }
     }
 }

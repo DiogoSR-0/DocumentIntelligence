@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using DocumentIntelligence.Api.Application.Abstractions.Storage;
 using DocumentIntelligence.Api.Infrastructure.Storage;
+using DocumentIntelligence.Api.Application.Abstractions.Documents;
+using DocumentIntelligence.Api.Infrastructure.Documents.Extraction;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,8 +24,16 @@ builder.Services.AddDbContext<DocumentIntelligenceDbContext>(options =>
 // Regista o serviço responsável pelo armazenamento dos ficheiros.
 builder.Services.AddScoped<IDocumentStorage, LocalDocumentStorage>();
 
+// Regista o extrator utilizado para obter texto dos ficheiros PDF.
+builder.Services.AddScoped<IDocumentTextExtractor, PdfPigDocumentTextExtractor>();
+
 // Adiciona suporte para controllers da API.
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 // Gera a documentação OpenAPI da aplicação.
